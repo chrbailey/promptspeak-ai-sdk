@@ -1,0 +1,73 @@
+{
+  "name": "@promptspeak/ai-sdk",
+  "version": "0.1.0",
+  "description": "Production guardrails for Vercel AI SDK agents. Drift detection, circuit breakers, and human-in-the-loop — in one middleware.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "ai-sdk",
+    "vercel",
+    "agent-safety",
+    "guardrails",
+    "middleware",
+    "drift-detection",
+    "circuit-breaker",
+    "human-in-the-loop",
+    "mcp",
+    "governance",
+    "promptspeak"
+  ],
+  "author": "Christopher Bailey <chris@erpaccess.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/chrbailey/promptspeak-ai-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrbailey/promptspeak-ai-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chrbailey/promptspeak-ai-sdk/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prebuild": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "promptspeak-mcp-server": "^0.3.0"
+  },
+  "peerDependencies": {
+    "ai": ">=4.0.0",
+    "zod": ">=3.0.0 || >=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ai-sdk/provider": "^1.0.0",
+    "@types/node": "^22.0.0",
+    "ai": "^4.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^3.0.0",
+    "zod": "^3.23.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
