@@ -6,48 +6,67 @@ import {
 import type { ExecuteResult, DriftAlert } from 'promptspeak-mcp-server';
 import type { PromptSpeakMiddlewareConfig, MiddlewareMode, GovernanceEvent } from './types.js';
 
-interface ToolCall {
-  toolCallType: 'function';
+// V3 content types — matches LanguageModelV3ToolCallPart
+interface ToolCallContent {
+  type: 'tool-call';
   toolCallId: string;
   toolName: string;
-  args: string;
+  input: unknown;
+  providerExecuted?: boolean;
 }
 
+interface TextContent {
+  type: 'text';
+  text: string;
+}
+
+type ContentItem = ToolCallContent | TextContent | { type: string; [key: string]: unknown };
+
 interface GenerateResult {
-  text?: string;
-  toolCalls?: ToolCall[];
-  toolResults?: unknown[];
-  finishReason?: string;
-  usage?: { promptTokens: number; completionTokens: number };
+  content: ContentItem[];
+  finishReason: { type: string; [key: string]: unknown };
+  usage: { inputTokens: number; outputTokens: number };
+  providerMetadata?: Record<string, unknown>;
+  request?: { body?: unknown };
+  response?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
-interface GenerateParams {
-  prompt?: unknown;
-  mode?: unknown;
+interface CallOptions {
+  [key: string]: unknown;
+}
+
+interface StreamResult {
+  stream: ReadableStream;
+  [key: string]: unknown;
+}
+
+interface ModelRef {
   [key: string]: unknown;
 }
 
 export interface PromptSpeakMiddleware {
+  readonly specificationVersion: 'v3';
+
   transformParams?: (options: {
-    params: GenerateParams;
-  }) => Promise<GenerateParams> | GenerateParams;
+    type: 'generate' | 'stream';
+    params: CallOptions;
+    model: ModelRef;
+  }) => Promise<CallOptions>;
 
   wrapGenerate?: (options: {
     doGenerate: () => Promise<GenerateResult>;
-    params: GenerateParams;
+    doStream: () => Promise<StreamResult>;
+    params: CallOptions;
+    model: ModelRef;
   }) => Promise<GenerateResult>;
 
   wrapStream?: (options: {
-    doStream: () => Promise<{
-      stream: ReadableStream;
-      [key: string]: unknown;
-    }>;
-    params: GenerateParams;
-  }) => Promise<{
-    stream: ReadableStream;
-    [key: string]: unknown;
-  }>;
+    doGenerate: () => Promise<GenerateResult>;
+    doStream: () => Promise<StreamResult>;
+    params: CallOptions;
+    model: ModelRef;
+  }) => Promise<StreamResult>;
 }
 
 let eventCounter = 0;
@@ -201,7 +220,9 @@ export function promptSpeakMiddleware(
   }
 
   return {
-    transformParams({ params }) {
+    specificationVersion: 'v3' as const,
+
+    async transformParams({ params }) {
       return {
         ...params,
         _promptSpeak: {
@@ -213,20 +234,33 @@ export function promptSpeakMiddleware(
       };
     },
 
-    async wrapGenerate({ doGenerate, params: _params }) {
+    async wrapGenerate({ doGenerate }) {
       const result = await doGenerate();
 
-      if (!result.toolCalls || result.toolCalls.length === 0) {
+      // Extract tool calls from V3 content array
+      const toolCalls = result.content.filter(
+        (item): item is ToolCallContent => item.type === 'tool-call',
+      );
+
+      if (toolCalls.length === 0) {
         return result;
       }
 
-      const allowedToolCalls: ToolCall[] = [];
+      const allowedContent: ContentItem[] = [];
       const blockedMessages: string[] = [];
 
-      for (const toolCall of result.toolCalls) {
+      for (const item of result.content) {
+        if (item.type !== 'tool-call') {
+          allowedContent.push(item);
+          continue;
+        }
+
+        const toolCall = item as ToolCallContent;
         let parsedArgs: Record<string, unknown>;
         try {
-          parsedArgs = JSON.parse(toolCall.args);
+          parsedArgs = typeof toolCall.input === 'string'
+            ? JSON.parse(toolCall.input)
+            : (toolCall.input as Record<string, unknown>) ?? {};
         } catch {
           parsedArgs = {};
         }
@@ -234,7 +268,7 @@ export function promptSpeakMiddleware(
         const event = evaluateToolCall(toolCall.toolName, parsedArgs);
 
         if (event.decision === 'allowed') {
-          allowedToolCalls.push(toolCall);
+          allowedContent.push(toolCall);
         } else {
           blockedMessages.push(
             `[PromptSpeak] Tool "${toolCall.toolName}" ${event.decision}: ${event.reason}`,
@@ -242,24 +276,22 @@ export function promptSpeakMiddleware(
         }
       }
 
-      const modifiedResult: GenerateResult = {
-        ...result,
-        toolCalls: allowedToolCalls,
-      };
-
       if (blockedMessages.length > 0) {
-        const governanceNote = blockedMessages.join('\n');
-        modifiedResult.text = result.text
-          ? `${result.text}\n\n${governanceNote}`
-          : governanceNote;
+        allowedContent.push({
+          type: 'text',
+          text: blockedMessages.join('\n'),
+        });
       }
 
-      return modifiedResult;
+      return {
+        ...result,
+        content: allowedContent,
+      };
     },
 
-    async wrapStream({ doStream, params: _params }) {
+    async wrapStream({ doStream }) {
       const streamResult = await doStream();
-      // TODO(v0.2.0): TransformStream that buffers tool call chunks
+      // TODO(v0.3.0): TransformStream that buffers tool call chunks
       return streamResult;
     },
   };
