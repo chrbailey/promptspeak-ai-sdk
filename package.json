@@ -1,6 +1,6 @@
 {
   "name": "@promptspeak/ai-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Production guardrails for Vercel AI SDK agents. Drift detection, circuit breakers, and human-in-the-loop — in one middleware.",
   "type": "module",
   "main": "dist/index.js",
@@ -51,7 +51,7 @@
     "promptspeak-mcp-server": "^0.3.0"
   },
   "peerDependencies": {
-    "ai": ">=4.0.0",
+    "ai": "^6.0.0",
     "zod": ">=3.0.0 || >=4.0.0"
   },
   "peerDependenciesMeta": {
@@ -60,9 +60,9 @@
     }
   },
   "devDependencies": {
-    "@ai-sdk/provider": "^1.0.0",
+    "@ai-sdk/provider": "^3.0.0",
     "@types/node": "^22.0.0",
-    "ai": "^4.0.0",
+    "ai": "^6.0.116",
     "typescript": "^5.3.0",
     "vitest": "^3.0.0",
     "zod": "^3.23.0"
